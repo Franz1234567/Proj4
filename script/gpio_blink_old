@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# defin PIN, export GPIO pin and set pin as output
+OUTPUT_PIN=18 
+echo $OUTPUT_PIN > /sys/class/gpio/export
+sleep 0.5
+echo "out" > /sys/class/gpio/gpio$OUTPUT_PIN/direction
+
+# toggle state
+while true; do
+    echo 1 > /sys/class/gpio/gpio$OUTPUT_PIN/value # set high
+    sleep 1
+
+    # Set the output pin to LOW (0)
+    echo 0 > /sys/class/gpio/gpio$OUTPUT_PIN/value # set low
+    sleep 1
+done

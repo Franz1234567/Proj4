@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# need to install gpiod on raspberry pi
+
+# sudo apt update
+# sudo apt install gpiod
+
+OUTPUT_PIN=18
+gpiod-ctl set $OUTPUT_PIN # Set GPIO pin as output
+
+
+while true; do
+    gpiod-ctl set $OUTPUT_PIN  # Set HIGH
+    sleep 1
+
+    gpiod-ctl clear $OUTPUT_PIN  # Set LOW
+    sleep 1
+done
