@@ -4,15 +4,10 @@
 
 # sudo apt update
 # sudo apt install gpiod
-
+INPUT_PIN=17
 OUTPUT_PIN=18
-gpiod-ctl set $OUTPUT_PIN # Set GPIO pin as output
-
 
 while true; do
-    gpiod-ctl set $OUTPUT_PIN  # Set HIGH
-    sleep 1
-
-    gpiod-ctl clear $OUTPUT_PIN  # Set LOW
-    sleep 1
+    state17 = $(gpioget gpiochip0 $INPUT_PIN)
+    gpioset gpiochip0 $OUTPUT_PIN = $state17
 done
