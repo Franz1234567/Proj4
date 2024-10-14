@@ -24,8 +24,14 @@ int main(){
     ret = -1;
     goto close_chip;
     }
+    if(!line18){
+    perror("Set line failed\n");
+    ret = -1;
+    goto close_chip;
+    }
 
-    ret = gpiod_line_request_rising_edge_events(line17, "gpio-test");
+    //ret = gpiod_line_request_rising_edge_events(line17, "gpio-test");
+    ret = gpiod_line_request_both_edges_events(line17, "gpio-test");
     if(ret < 0){
         perror("Request event notification failed\n");
         ret = -1;
@@ -55,16 +61,14 @@ int main(){
                 goto close_chip;
                 return ret;
             }
-
             gpiod_line_set_value(line18, input_value);
         }
-        usleep(100);
     }
     
-
     release_line:
 
     gpiod_line_release(line17);
+    gpiod_line_release(line18);
 
     close_chip:
 
