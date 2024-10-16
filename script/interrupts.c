@@ -51,6 +51,19 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
  return -1;
  }
 
+if (gpio_request(GPIO_18, "rpi-gpio-18")) {
+    printk("Error!\nCannot allocate GPIO 18\n");
+    gpio_free(GPIO_17);
+    return -1;
+}
+
+if (gpio_direction_output(GPIO_18, 0)) {
+    printk("Error!\nCannot set GPIO 18 to output!\n");
+    gpio_free(GPIO_17);
+    gpio_free(GPIO_18);
+    return -1;
+}
+
  /* Setup the interrupt */
  irq_number = gpio_to_irq(GPIO_17);
 
