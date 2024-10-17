@@ -32,10 +32,10 @@ void timer_1s_callback(struct timer_list *timer);
 
 // All our variables
 
-bool last_state_A;
-bool last_state_B;
-bool curr_state_A;
-bool curr_state_B;
+// bool last_state_A;
+// bool last_state_B;
+// bool curr_state_A;
+// bool curr_state_B;
 
 int speed = 0;
 int actual_value = 0;
@@ -45,13 +45,13 @@ int count_max_pwm = 100;
 
 // Controller
 // PI Controller parameters
-double Kp_ = 1.0;  // Proportional gain
-double Ti = 1.0;  // Integral time
-double T = 0.008; // Sample time (8ms)
-double sum_error = 0; // Integral of the error
-double max_speed = 3000;
-double reference_value = 2000; // Target speed 
-double u = 0;
+// double Kp_ = 1.0;  // Proportional gain
+// double Ti = 1.0;  // Integral time
+// double T = 0.008; // Sample time (8ms)
+// double sum_error = 0; // Integral of the error
+// double max_speed = 3000;
+// double reference_value = 2000; // Target speed 
+// double u = 0;
 
 static int pin18_state = 0;
 
@@ -63,7 +63,6 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
     // printk("gpio_irq: Interrupt was triggered and ISR was called!\n");
     // sleep for 50 us
     // usleep_range(50, 55);
-    udelay(50);
     // pin18_state = !pin18_state;
     // gpio_set_value(GPIO_18, pin18_state);
 
@@ -72,6 +71,22 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
 
     // int gpio17_value;
     // int gpio19_value;
+
+    //udelay(50);
+
+    bool curr_state_A = gpio_get_value(GPIO_17);
+    bool curr_state_B = gpio_get_value(GPIO_19); 
+
+    // interrupt occured when PIN 17 linked to C1 changed (rising or falling edge)
+    if (curr_state_A != curr_state_B) { // if they are different, it means that the encoder is rotating clockwise
+        count_pulses++; 
+    } else { // they are the same, it means that the encoder is rotating counter-clockwise 
+        count_pulses--;
+    }
+
+    return IRQ_HANDLED;
+
+
     
     // if (last_state_A == last_state_B) {
     //     gpio17_value = gpio_get_value(GPIO_17);
@@ -97,8 +112,6 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
 
     // last_state_A = curr_state_A;
     // last_state_B = curr_state_B;
-
- return IRQ_HANDLED;
 }
 
 /**
