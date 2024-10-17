@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define NUM_SAMPLES 1000 // Number of samples to measure
+// #define NUM_SAMPLES 1000 // Number of samples to measure
 
 
 int main(int argc, char *argv[]) {
@@ -36,15 +36,15 @@ int main(int argc, char *argv[]) {
     int counter = 0;
 
     // Timing variables
-    struct timespec start, end;
-    double time_diff_ns;
-    double jitter[NUM_SAMPLES]; // Array to store time differences (jitter)
-    int sample_index = 0;
+    // struct timespec start, end;
+    // double time_diff_ns;
+    // double jitter[NUM_SAMPLES]; // Array to store time differences (jitter)
+    // int sample_index = 0;
 
     // Start time measurement
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    while (sample_index < NUM_SAMPLES) {
+    // clock_gettime(CLOCK_MONOTONIC, &start);
+    //sample_index < NUM_SAMPLES
+    while (1) {
         read(fd, &speedbuff, sizeof(speedbuff));
         double error = reference_value - speedbuff;
         sum_error += error * T;
@@ -73,23 +73,23 @@ int main(int argc, char *argv[]) {
         }
 
         // Measure the time at the end of the iteration
-        clock_gettime(CLOCK_MONOTONIC, &end);
+        //clock_gettime(CLOCK_MONOTONIC, &end);
 
         // Calculate the time difference in nanoseconds
-        time_diff_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
-        jitter[sample_index++] = time_diff_ns;
+        //time_diff_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
+        //jitter[sample_index++] = time_diff_ns;
 
         // Set start time for next iteration
-        clock_gettime(CLOCK_MONOTONIC, &start);
+        //clock_gettime(CLOCK_MONOTONIC, &start);
 
         usleep(8000);
     }
 
     // Print jitter data for analysis
-    printf("Jitter (time difference in nanoseconds between iterations):\n");
-    for (int i = 0; i < NUM_SAMPLES; i++) {
-        printf("%lf\n", jitter[i]);
-    }
+    // printf("Jitter (time difference in nanoseconds between iterations):\n");
+    // for (int i = 0; i < NUM_SAMPLES; i++) {
+    //     printf("%lf\n", jitter[i]);
+    // }
 
 
     ret = close(fd);
