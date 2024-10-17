@@ -5,6 +5,8 @@
 #include <linux/timer.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
 
 /* Meta Information */
 MODULE_LICENSE("GPL");
@@ -24,16 +26,20 @@ static int   majorNumber;        ///< Stores the device number -- determined aut
 unsigned int irq_number;
 
 /* Declare two timers for periodic interrupts */
-// static struct timer_list timer_8ms;
+static struct timer_list timer_8ms;
 static struct timer_list timer_1s;
-// static struct timer_list timer_400us;
-// static struct timer_list timer_4us;
+//static struct timer_list timer_400us;
+//static struct timer_list timer_4us;
+
+struct hrtimer my_hrtimer400us;
+struct hrtimer my_hrtimer4us;
+
 
 /* Function prototypes for timer callbacks */
-// void timer_8ms_callback(struct timer_list *timer);
+void timer_8ms_callback(struct timer_list *timer);
 void timer_1s_callback(struct timer_list *timer);
-// void timer_400us_callback(struct timer_list *timer);
-// void timer_4us_callback(struct timer_list *timer);
+void timer_400us_callback(struct timer_list *timer);
+void timer_4us_callback(struct timer_list *timer);
 
 // All our variables
 
@@ -46,8 +52,9 @@ int speed = 0;
 int actual_value = 0;
 int count_pulses = 0;
 int count_pwm = 0;
-int count_max_pwm = 100;
+int count_max_pwm = 50;
 
+int testing = 0;
 
 // Controller
 // PI Controller parameters
@@ -58,8 +65,6 @@ int count_max_pwm = 100;
 // double max_speed = 3000;
 // double reference_value = 2000; // Target speed 
 // double u = 0;
-
-static int pin18_state = 0;
 
 /**
  * @brief Interrupt service routine is called, when interrupt is triggered
@@ -128,12 +133,15 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
 static int     mydriver_open(struct inode *, struct file *);
 static int     mydriver_release(struct inode *, struct file *);
 static ssize_t mydriver_write(struct file *, const char *, size_t, loff_t *);
+static ssize_t mydriver_read(struct file *, char *, size_t , loff_t *);
+
 
 static struct file_operations fops =
 {
    .open = mydriver_open,
    .write = mydriver_write,
    .release = mydriver_release,
+   .read = mydriver_read,
 };
 
 static int mydriver_open(struct inode *inodep, struct file *filep){
@@ -144,22 +152,22 @@ static int mydriver_open(struct inode *inodep, struct file *filep){
 static ssize_t mydriver_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
     //printk(KERN_INFO "mydriver: %zu \n", buffer);
 
-    if (copy_from_user(count_max_pwm, buffer, len)) {
+    if (copy_from_user(&count_max_pwm, buffer, len)) {
         printk(KERN_ERR "Failed to copy data from user space\n");
         return -EFAULT;
     }
 
-    printk(KERN_INFO "Data received from user space: %s\n", buffer);
+    //printk(KERN_INFO "Data received from user space: %s\n", buffer);
     return len;
 }
 
-static ssize_t mydriver_read(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
+static ssize_t mydriver_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
     // Copy data from kernel space to user space
-    if (copy_to_user(buffer, speed, sizeof(speed))) {
+    if (copy_to_user(buffer, &speed, sizeof(speed))) {
         printk(KERN_ERR "Failed to copy data to user space\n");
         return -EFAULT;
     }
-    printk(KERN_INFO "Data sent to user space\n");
+    //printk(KERN_INFO "Data sent to user space\n");
     return sizeof(speed);
 }
 
@@ -168,12 +176,14 @@ static int mydriver_release(struct inode *inodep, struct file *filep){
    return 0;
 }
 
+/*
  void timer_8ms_callback(struct timer_list *timer) // Pi controller logic is here
  {
      actual_value = speed;
 //     // gives speed to user space via input buffer
 //     // reads from user space count_max_pwm 
-
+    //testing = !testing;
+    //gpio_set_value(GPIO_18, testing);
     mod_timer(&timer_8ms, jiffies + msecs_to_jiffies(8));
 
     // double error = reference_value - actual_value;
@@ -189,6 +199,33 @@ static int mydriver_release(struct inode *inodep, struct file *filep){
 
     // Restart the timer for another 8 ms
  }
+*/
+
+enum hrtimer_restart my_hrtimer400us_callback(struct hrtimer *timer)
+{
+    gpio_set_value(GPIO_13, 0);
+    count_pwm = 0;
+
+    // Restart the timer for the next interval
+    hrtimer_forward_now(timer, ktime_set(0, 400 * 1000)); // Set for 400 us
+    return HRTIMER_RESTART; // Restart the timer
+}
+
+enum hrtimer_restart my_hrtimer4us_callback(struct hrtimer *timer)
+{
+
+    if (count_pwm != count_max_pwm){
+        count_pwm++;
+    }
+    else{
+        gpio_set_value(GPIO_13, 1);
+    }
+    // Restart the timer for the next interval
+    hrtimer_forward_now(timer, ktime_set(0, 4 * 1000)); // Set for 4 us
+    return HRTIMER_RESTART; // Restart the timer
+}
+
+/*
 
 void timer_400us_callback(struct timer_list *timer)
 {
@@ -207,7 +244,7 @@ void timer_4us_callback(struct timer_list *timer)
     }
     mod_timer(&timer_4us, jiffies + usecs_to_jiffies(4));
 }
-
+*/
 /**
  * @brief Callback function for the 1 second timer
  */
@@ -215,10 +252,12 @@ void timer_4us_callback(struct timer_list *timer)
 void timer_1s_callback(struct timer_list *timer)
 {
     //printk("Timer 1s: Interrupt triggered\n");
-    /* Restart the timer for another 1 second */
+    //Restart the timer for another 1 second 
     speed = count_pulses;
     printk("Pulses: %d\n", speed);
     count_pulses = 0;
+
+    printk("%d \n", count_max_pwm);
     mod_timer(&timer_1s, jiffies + msecs_to_jiffies(1000));
 }
 
@@ -229,7 +268,6 @@ static int __init ModuleInit(void)
 {
     printk("gpio_irq: Loading module...\n");
 
-    //printk(KERN_INFO "mydriver: Hello %s from the RPi LKM!\n", name);
     majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
     if (majorNumber < 0) {
         printk(KERN_ALERT "mydriver failed to register a major number\n");
@@ -308,28 +346,40 @@ static int __init ModuleInit(void)
         return -1;
     }
 
-    //last_state_A = (gpio_get_value(GPIO_17) == 0);
-    //last_state_B = (gpio_get_value(GPIO_19) == 0);
-
     printk("Done!\n");
     printk("GPIO 17 is mapped to IRQ Nr.: %d\n", irq_number);
 
     // /* Initialize and start the 8 ms timer */
-    // timer_setup(&timer_8ms, timer_8ms_callback, 0);
-    // mod_timer(&timer_8ms, jiffies + msecs_to_jiffies(8));
+    //timer_setup(&timer_8ms, timer_8ms_callback, 0);
+    //mod_timer(&timer_8ms, jiffies + msecs_to_jiffies(8));
 
     // /* Initialize and start the 1 second timer */
     timer_setup(&timer_1s, timer_1s_callback, 0);
     mod_timer(&timer_1s, jiffies + msecs_to_jiffies(1000));
 
     // /* Initialize and start the 400 us timer */
-    // timer_setup(&timer_400us, timer_400us_callback, 0);
-    // mod_timer(&timer_400us, jiffies + usecs_to_jiffies(400));
+    //timer_setup(&timer_400us, timer_400us_callback, 0);
+    //mod_timer(&timer_400us, jiffies + usecs_to_jiffies(400));
 
     // /* Initialize and start the 4 us timer */
-    // timer_setup(&timer_4us, timer_4us_callback, 0);
-    // mod_timer(&timer_4us, jiffies + usecs_to_jiffies(4));
+    //timer_setup(&timer_4us, timer_4us_callback, 0);
+    //mod_timer(&timer_4us, jiffies + usecs_to_jiffies(4));
 
+    // Initialize and start the high-resolution 400us
+    ktime_t ktime400us = ktime_set(0, 400 * 1000); // 400 us
+    hrtimer_init(&my_hrtimer400us, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    my_hrtimer400us.function = my_hrtimer400us_callback;
+    hrtimer_start(&my_hrtimer400us, ktime400us, HRTIMER_MODE_REL);
+
+    // Initialize and start the high-resolution 4us
+    ktime_t ktime4us = ktime_set(0, 4 * 1000); // 4 us
+    hrtimer_init(&my_hrtimer4us, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    my_hrtimer4us.function = my_hrtimer4us_callback;
+    hrtimer_start(&my_hrtimer4us, ktime4us, HRTIMER_MODE_REL);
+
+
+
+    gpio_set_value(GPIO_13,1);
     return 0;
 }
 
@@ -348,10 +398,13 @@ static void __exit ModuleExit(void)
     gpio_free(GPIO_13);
 
     /* Stop and free the timers */
-    // del_timer(&timer_8ms);
+    del_timer(&timer_8ms);
     del_timer(&timer_1s);
-    // del_timer(&timer_400us);
-    // del_timer(&timer_4us);
+    //del_timer(&timer_400us);
+    //del_timer(&timer_4us);
+    hrtimer_cancel(&my_hrtimer400us);
+    hrtimer_cancel(&my_hrtimer4us);
+
 }
 
 module_init(ModuleInit);
