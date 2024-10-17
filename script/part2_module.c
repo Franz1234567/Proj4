@@ -4,6 +4,7 @@
 #include <linux/interrupt.h>
 #include <linux/timer.h>
 #include <linux/delay.h>
+#include <linux/fs.h>
 
 /* Meta Information */
 MODULE_LICENSE("GPL");
@@ -14,6 +15,10 @@ MODULE_DESCRIPTION("A simple LKM for a gpio interrupt");
 #define GPIO_18 530 // need to check
 #define GPIO_19 531 // need to check
 #define GPIO_13 525 // need to check
+#define  DEVICE_MAJOR 0         ///< Requested device node major number or 0 for dynamic allocation
+#define  DEVICE_NAME "mydriver"   ///< In this implementation, the device name has nothing to do with the name of the device in /dev. You must use mknod to create the device node in /dev
+
+static int   majorNumber;        ///< Stores the device number -- determined automatically
 
 /** variable contains pin number of interrupt controller to which GPIO 17 is mapped */
 unsigned int irq_number;
@@ -42,6 +47,7 @@ int actual_value = 0;
 int count_pulses = 0;
 int count_pwm = 0;
 int count_max_pwm = 100;
+
 
 // Controller
 // PI Controller parameters
@@ -118,15 +124,57 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
  * @brief Callback function for the 8ms timer
  */
 
-// void timer_8ms_callback(struct timer_list *timer) // Pi controller logic is here
-// {
+// The prototype functions for the character driver -- must come before the struct definition
+static int     mydriver_open(struct inode *, struct file *);
+static int     mydriver_release(struct inode *, struct file *);
+static ssize_t mydriver_write(struct file *, const char *, size_t, loff_t *);
 
-//     actual_value = speed;
+static struct file_operations fops =
+{
+   .open = mydriver_open,
+   .write = mydriver_write,
+   .release = mydriver_release,
+};
 
+static int mydriver_open(struct inode *inodep, struct file *filep){
+   printk(KERN_INFO "mydriver: Device has been opened\n");
+   return 0;
+}
+
+static ssize_t mydriver_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
+    //printk(KERN_INFO "mydriver: %zu \n", buffer);
+
+    if (copy_from_user(count_max_pwm, buffer, len)) {
+        printk(KERN_ERR "Failed to copy data from user space\n");
+        return -EFAULT;
+    }
+
+    printk(KERN_INFO "Data received from user space: %s\n", buffer);
+    return len;
+}
+
+static ssize_t mydriver_read(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
+    // Copy data from kernel space to user space
+    if (copy_to_user(buffer, speed, sizeof(speed))) {
+        printk(KERN_ERR "Failed to copy data to user space\n");
+        return -EFAULT;
+    }
+    printk(KERN_INFO "Data sent to user space\n");
+    return sizeof(speed);
+}
+
+static int mydriver_release(struct inode *inodep, struct file *filep){
+   printk(KERN_INFO "mydriver: Device successfully closed\n");
+   return 0;
+}
+
+ void timer_8ms_callback(struct timer_list *timer) // Pi controller logic is here
+ {
+     actual_value = speed;
 //     // gives speed to user space via input buffer
 //     // reads from user space count_max_pwm 
 
-//     mod_timer(&timer_8ms, jiffies + msecs_to_jiffies(8));
+    mod_timer(&timer_8ms, jiffies + msecs_to_jiffies(8));
 
     // double error = reference_value - actual_value;
     // sum_error_priv += error * T_priv;
@@ -140,25 +188,25 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
     // if (u < 1){ u = 1;} //limiting the lower bound of the duty cycle
 
     // Restart the timer for another 8 ms
-// }
+ }
 
-// void timer_400us_callback(struct timer_list *timer)
-// {
-//     gpio_set_value(GPIO_13, 0);
-//     count_pwm = 0;
-//     mod_timer(&timer_400us, jiffies + usecs_to_jiffies(400));
-// }
+void timer_400us_callback(struct timer_list *timer)
+{
+    gpio_set_value(GPIO_13, 0);
+    count_pwm = 0;
+    mod_timer(&timer_400us, jiffies + usecs_to_jiffies(400));
+}
 
-// void timer_4us_callback(struct timer_list *timer)
-// {
-//     if (count_pwm != count_max_pwm){
-//         count_pwm++;
-//     }
-//     else{
-//         gpio_set_value(GPIO_13, 1);
-//     }
-//     mod_timer(&timer_4us, jiffies + usecs_to_jiffies(4));
-// }
+void timer_4us_callback(struct timer_list *timer)
+{
+    if (count_pwm != count_max_pwm){
+        count_pwm++;
+    }
+    else{
+        gpio_set_value(GPIO_13, 1);
+    }
+    mod_timer(&timer_4us, jiffies + usecs_to_jiffies(4));
+}
 
 /**
  * @brief Callback function for the 1 second timer
@@ -167,7 +215,6 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
 void timer_1s_callback(struct timer_list *timer)
 {
     //printk("Timer 1s: Interrupt triggered\n");
-
     /* Restart the timer for another 1 second */
     speed = count_pulses;
     printk("Pulses: %d\n", speed);
@@ -181,6 +228,16 @@ void timer_1s_callback(struct timer_list *timer)
 static int __init ModuleInit(void)
 {
     printk("gpio_irq: Loading module...\n");
+
+    //printk(KERN_INFO "mydriver: Hello %s from the RPi LKM!\n", name);
+    majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
+    if (majorNumber < 0) {
+        printk(KERN_ALERT "mydriver failed to register a major number\n");
+        return majorNumber;
+    }
+    else {
+        printk(KERN_INFO "mydriver: Registered with major number %d\n", majorNumber);
+    }
 
     /* Setup the GPIO */
     if (gpio_request(GPIO_17, "rpi-gpio-17")) {
@@ -251,8 +308,8 @@ static int __init ModuleInit(void)
         return -1;
     }
 
-    last_state_A = (gpio_get_value(GPIO_17) == 0);
-    last_state_B = (gpio_get_value(GPIO_19) == 0);
+    //last_state_A = (gpio_get_value(GPIO_17) == 0);
+    //last_state_B = (gpio_get_value(GPIO_19) == 0);
 
     printk("Done!\n");
     printk("GPIO 17 is mapped to IRQ Nr.: %d\n", irq_number);
@@ -282,6 +339,8 @@ static int __init ModuleInit(void)
 static void __exit ModuleExit(void)
 {
     printk("gpio_irq: Unloading module...\n");
+    unregister_chrdev(majorNumber, DEVICE_NAME);
+ 
     free_irq(irq_number, NULL);
     gpio_free(GPIO_18);
     gpio_free(GPIO_17);
