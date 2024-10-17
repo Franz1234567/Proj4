@@ -26,7 +26,7 @@ static int   majorNumber;        ///< Stores the device number -- determined aut
 unsigned int irq_number;
 
 /* Declare two timers for periodic interrupts */
-static struct timer_list timer_8ms;
+//static struct timer_list timer_8ms;
 static struct timer_list timer_1s;
 //static struct timer_list timer_400us;
 //static struct timer_list timer_4us;
@@ -36,7 +36,7 @@ struct hrtimer my_hrtimer4us;
 
 
 /* Function prototypes for timer callbacks */
-void timer_8ms_callback(struct timer_list *timer);
+//void timer_8ms_callback(struct timer_list *timer);
 void timer_1s_callback(struct timer_list *timer);
 void timer_400us_callback(struct timer_list *timer);
 void timer_4us_callback(struct timer_list *timer);
@@ -151,12 +151,10 @@ static int mydriver_open(struct inode *inodep, struct file *filep){
 
 static ssize_t mydriver_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
     //printk(KERN_INFO "mydriver: %zu \n", buffer);
-
     if (copy_from_user(&count_max_pwm, buffer, len)) {
         printk(KERN_ERR "Failed to copy data from user space\n");
         return -EFAULT;
     }
-
     //printk(KERN_INFO "Data received from user space: %s\n", buffer);
     return len;
 }
@@ -203,7 +201,7 @@ static int mydriver_release(struct inode *inodep, struct file *filep){
 
 enum hrtimer_restart my_hrtimer400us_callback(struct hrtimer *timer)
 {
-    gpio_set_value(GPIO_13, 0);
+    gpio_set_value(GPIO_13, 1);
     count_pwm = 0;
 
     // Restart the timer for the next interval
@@ -213,12 +211,11 @@ enum hrtimer_restart my_hrtimer400us_callback(struct hrtimer *timer)
 
 enum hrtimer_restart my_hrtimer4us_callback(struct hrtimer *timer)
 {
-
     if (count_pwm != count_max_pwm){
         count_pwm++;
     }
     else{
-        gpio_set_value(GPIO_13, 1);
+        gpio_set_value(GPIO_13, 0);
     }
     // Restart the timer for the next interval
     hrtimer_forward_now(timer, ktime_set(0, 4 * 1000)); // Set for 4 us
@@ -398,7 +395,7 @@ static void __exit ModuleExit(void)
     gpio_free(GPIO_13);
 
     /* Stop and free the timers */
-    del_timer(&timer_8ms);
+    //del_timer(&timer_8ms);
     del_timer(&timer_1s);
     //del_timer(&timer_400us);
     //del_timer(&timer_4us);
