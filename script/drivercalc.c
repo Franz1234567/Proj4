@@ -5,8 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-// #define NUM_SAMPLES 1000 // Number of samples to measure
-
+// #define NUM_SAMPLES 1000 // Number of samples to measure to measure time
 
 int main(int argc, char *argv[]) {
 
@@ -17,7 +16,6 @@ int main(int argc, char *argv[]) {
     }
 
     int reference_value = atoi(argv[1]);
-    
 
     int ret;
     int fd = open("/dev/mydriver", O_RDWR);
@@ -26,14 +24,14 @@ int main(int argc, char *argv[]) {
 
     // Controller
     // PI Controller parameters
-    double Kp = 0.0135;  // Proportional gain
-    double Ti = 1.66;  // Integral time
-    double T = 0.01; // Sample time (8ms)
-    double sum_error = 0; // Integral of the error
+    double Kp = 0.0135;
+    double Ti = 1.66;
+    double T = 0.01;
+    double sum_error = 0;
     double max_speed = 3000;
-    //double reference_value = 1500; // Target speed 
-    double u = 0;    
-    int counter = 0;
+    //double reference_value = 1500; // Target speed, is given by user in command line
+    double u = 0;
+    int counter = 0; // to print very seconds
 
     // Timing variables
     // struct timespec start, end;
@@ -43,28 +41,27 @@ int main(int argc, char *argv[]) {
 
     // Start time measurement
     // clock_gettime(CLOCK_MONOTONIC, &start);
-    //sample_index < NUM_SAMPLES
-    while (1) {
-        read(fd, &speedbuff, sizeof(speedbuff));
+
+    while (1) { // replace by while(sample_index < NUM_SAMPLES){ to measure jitter
+        read(fd, &speedbuff, sizeof(speedbuff)); // Get the speed from the module
+
         double error = reference_value - speedbuff;
         sum_error += error * T;
-        u = Kp * error + (Kp / Ti) * sum_error; // update new speed
+        u = Kp * error + (Kp / Ti) * sum_error; // contol law
         double test = u;
         if (u >= max_speed) {
             sum_error -= error * T;
         }
 
-        if (u > 99){ u = 95;} //limiting the upper bound of the duty cycle
-        if (u < 1){ u = 5;} //limiting the lower bound of the duty cycle
-        //u = abs(100 - u);
+        if (u > 99){ u = 99;} //limiting the upper bound of the duty cycle
+        if (u < 1){ u = 1;} //limiting the lower bound of the duty cycle
 
-        int pwm = (int)u;
-        ret = write(fd, &pwm, sizeof(pwm));
+        int pwm = (int)u; // give int to kernel, as it has trouble with floating point numbers
+        ret = write(fd, &pwm, sizeof(pwm)); // Send the pwm to the module
         counter = counter+1;
 
-        if(counter == 100)
+        if(counter == 125) // happens ~every second
         {
-            //printf("sum: %e, pmw: %d, testu %f \n",sum_error, pwm,test);
             printf("speed: %d ", speedbuff);
             printf("u: %d ", (int)u);
             printf("\n");
@@ -91,8 +88,7 @@ int main(int argc, char *argv[]) {
     //     printf("%lf\n", jitter[i]);
     // }
 
-
     ret = close(fd);
-    
+
     return 0;
 }
