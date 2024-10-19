@@ -48,7 +48,6 @@ int main(int argc, char *argv[]) {
         double error = reference_value - speedbuff;
         sum_error += error * T;
         u = Kp * error + (Kp / Ti) * sum_error; // contol law
-        double test = u;
         if (u >= max_speed) {
             sum_error -= error * T;
         }

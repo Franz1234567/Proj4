@@ -35,7 +35,7 @@ struct hrtimer my_hrtimer4us; // 4 us timer for PWM
 int speed = 0;
 int count_pulses = 0;
 int count_pwm = 0;
-int count_max_pwm = 50; // intial value of 50%
+int count_max_pwm = 0; // intial value 
 
 //Interrupt service routine is called, when interrupt is triggered
 static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
@@ -51,10 +51,6 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
     }
     return IRQ_HANDLED;
 }
-
-/**
- * @brief Callback function for the 8ms timer
- */
 
 // The prototype functions for the character driver 
 static int mydriver_open(struct inode *, struct file *);
@@ -99,12 +95,22 @@ static int mydriver_release(struct inode *inodep, struct file *filep){
    return 0;
 }
 
+void timer_1s_callback(struct timer_list *timer)
+{
+    speed = count_pulses;
+    printk("Pulses: %d\n", speed);
+    count_pulses = 0;
+
+    printk("%d \n", count_max_pwm);
+    mod_timer(&timer_1s, jiffies + msecs_to_jiffies(1000));
+}
+
 enum hrtimer_restart my_hrtimer400us_callback(struct hrtimer *timer)
 {
     gpio_set_value(GPIO_13, 1);
     count_pwm = 0;
 
-    // Restart the timer for the next interval
+    // Restart the timer 
     hrtimer_forward_now(timer, ktime_set(0, 400 * 1000)); // Set for 400 us
     return HRTIMER_RESTART;
 }
